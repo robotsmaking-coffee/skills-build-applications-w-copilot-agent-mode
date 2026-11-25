@@ -52,10 +52,15 @@ describe('OctoFit API contract', () => {
     }
   });
   it('creates teams and exposes members', async () => {
-    const member = await User.create({ name: 'Mona', email: 'mona@example.com', fitnessGoal: 'endurance' });
+    const member = await User.create({
+      _id: new mongoose.Types.ObjectId('abcdefabcdefabcdefabcdef'),
+      name: 'Mona',
+      email: 'mona@example.com',
+      fitnessGoal: 'endurance',
+    });
     const invalid = await request(app).post('/api/teams').send({ mascot: 'Mona' });
     expect(invalid.status).toBe(400);
-    const created = await request(app).post('/api/teams').send({ name: 'Octocats', mascot: 'Mona', members: [member._id.toString()] });
+    const created = await request(app).post('/api/teams').send({ name: 'Octocats', mascot: 'Mona', members: [member._id.toString().toUpperCase()] });
     expect(created.status).toBe(201);
     expect(created.body.team).toMatchObject({ name: 'Octocats', mascot: 'Mona' });
     const listed = await request(app).get('/api/teams');
@@ -127,5 +132,22 @@ describe('OctoFit API contract', () => {
     const unknownResponse = await request(app).get('/api/workouts/suggestions/nobody%40example.com');
     expect(unknownResponse.status).toBeGreaterThanOrEqual(400);
     expect(unknownResponse.status).toBeLessThan(500);
+  });
+  it('falls back to the fitness goal for activity types inherited from Object.prototype', async () => {
+    const { user, team } = await createUserAndTeam('Mona', 'mona@example.com', 'Mona');
+    await Activity.create({
+      user: user._id,
+      team: team._id,
+      type: '__proto__',
+      minutes: 20,
+      points: 20,
+      occurredAt: new Date(),
+    });
+    await Workout.create({ title: 'Endurance', focus: 'endurance', minutes: 30, difficulty: 'moderate' });
+
+    const response = await request(app).get('/api/workouts/suggestions/mona%40example.com');
+
+    expect(response.status).toBe(200);
+    expect(response.body.suggestions[0]).toMatchObject({ title: 'Endurance', focus: 'endurance' });
   });
 });
