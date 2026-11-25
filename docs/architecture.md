@@ -48,3 +48,4 @@ Commands run and what failures indicate:
 - `npm test --prefix octofit-tracker/frontend` — passed (15 tests); failures indicate route rendering, request, or accessible state regressions.
 - `npm run build --prefix octofit-tracker/backend` — passed; failures indicate backend TypeScript errors.
 - `npm run build --prefix octofit-tracker/frontend` — passed; failures indicate frontend TypeScript or Vite production-build errors.
+
