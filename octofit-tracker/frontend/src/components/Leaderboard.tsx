@@ -1,11 +1,13 @@
 import { CapabilityCard } from './CapabilityCard.js';
 import { useApiResource } from '../api/useApiResource.js';
+import { getJson } from '../api/client.js';
 
 type LeaderboardEntry = { teamName: string; totalPoints: number; rank: number };
 type LeaderboardResponse = { leaderboard: LeaderboardEntry[] };
+const loadLeaderboard = () => getJson<LeaderboardResponse>('/api/leaderboard');
 
 export default function Leaderboard() {
-  const state = useApiResource<LeaderboardResponse>('/api/leaderboard');
+  const state = useApiResource(loadLeaderboard);
   return (
     <CapabilityCard title="Leaderboard" description="Compare team point totals.">
       {state.status === 'loading' && <p role="status">Loading leaderboard...</p>}
