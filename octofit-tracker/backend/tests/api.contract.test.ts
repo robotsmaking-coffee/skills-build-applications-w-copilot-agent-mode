@@ -52,16 +52,46 @@ describe('OctoFit API contract', () => {
     }
   });
   it('creates teams and exposes members', async () => {
-    const member = await User.create({ name: 'Mona', email: 'mona@example.com', fitnessGoal: 'endurance' });
+    const member = await User.create({
+      _id: new mongoose.Types.ObjectId('abcdefabcdefabcdefabcdef'),
+      name: 'Mona',
+      email: 'mona@example.com',
+      fitnessGoal: 'endurance',
+    });
     const invalid = await request(app).post('/api/teams').send({ mascot: 'Mona' });
     expect(invalid.status).toBe(400);
-    const created = await request(app).post('/api/teams').send({ name: 'Octocats', mascot: 'Mona', members: [member._id.toString()] });
+    const created = await request(app).post('/api/teams').send({ name: 'Octocats', mascot: 'Mona', members: [member._id.toString().toUpperCase()] });
     expect(created.status).toBe(201);
     expect(created.body.team).toMatchObject({ name: 'Octocats', mascot: 'Mona' });
     const listed = await request(app).get('/api/teams');
     expect(listed.body.teams).toHaveLength(1);
     expect(listed.body.teams[0]).toMatchObject({ name: 'Octocats', mascot: 'Mona' });
     expect(listed.body.teams[0].members.map((id: string) => id.toString())).toContain(member._id.toString());
+  });
+  it('moves members from their previous teams when creating a team', async () => {
+    const previousTeam = await Team.create({ name: 'Previous team', mascot: 'Mona' });
+    const member = await User.create({
+      name: 'Mona',
+      email: 'mona@example.com',
+      team: previousTeam._id,
+      fitnessGoal: 'endurance',
+    });
+    await Team.updateOne({ _id: previousTeam._id }, { $addToSet: { members: member._id } });
+
+    const response = await request(app).post('/api/teams').send({
+      name: 'Octocats',
+      mascot: 'Mona',
+      members: [member._id.toString()],
+    });
+
+    expect(response.status).toBe(201);
+    const [updatedMember, updatedPreviousTeam] = await Promise.all([
+      User.findById(member._id).lean(),
+      Team.findById(previousTeam._id).lean(),
+    ]);
+    expect(updatedMember?.team?.toString()).toBe(response.body.team._id);
+    expect(updatedPreviousTeam?.members).not.toContainEqual(member._id);
+    expect(response.body.team.members).toContain(member._id.toString());
   });
   it('orders leaderboard entries by total points', async () => {
     const mona = await createUserAndTeam('Mona', 'mona@example.com', 'Mona', 'Octocats');
@@ -102,5 +132,22 @@ describe('OctoFit API contract', () => {
     const unknownResponse = await request(app).get('/api/workouts/suggestions/nobody%40example.com');
     expect(unknownResponse.status).toBeGreaterThanOrEqual(400);
     expect(unknownResponse.status).toBeLessThan(500);
+  });
+  it('falls back to the fitness goal for activity types inherited from Object.prototype', async () => {
+    const { user, team } = await createUserAndTeam('Mona', 'mona@example.com', 'Mona');
+    await Activity.create({
+      user: user._id,
+      team: team._id,
+      type: '__proto__',
+      minutes: 20,
+      points: 20,
+      occurredAt: new Date(),
+    });
+    await Workout.create({ title: 'Endurance', focus: 'endurance', minutes: 30, difficulty: 'moderate' });
+
+    const response = await request(app).get('/api/workouts/suggestions/mona%40example.com');
+
+    expect(response.status).toBe(200);
+    expect(response.body.suggestions[0]).toMatchObject({ title: 'Endurance', focus: 'endurance' });
   });
 });
