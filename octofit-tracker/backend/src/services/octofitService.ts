@@ -62,7 +62,7 @@ export async function createTeam(input: unknown) {
     throw httpError(400, 'Members must be valid user IDs');
   }
 
-  const memberIds = [...new Set(members)];
+  const memberIds = [...new Set(members.map((member) => member.toLowerCase()))];
   const existingMembers = await User.find({ _id: { $in: memberIds } }).select('_id').lean();
   if (existingMembers.length !== memberIds.length) throw httpError(400, 'Every member must be an existing user');
 
