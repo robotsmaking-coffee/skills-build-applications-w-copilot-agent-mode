@@ -102,7 +102,9 @@ export async function suggestWorkouts(userEmail: string) {
 
   const recentActivity = await Activity.findOne({ user: user._id }).sort({ occurredAt: -1 }).select('type').lean();
   const recentFocus = recentActivity
-    ? activityFocus[recentActivity.type.toLowerCase()] ?? recentActivity.type.toLowerCase()
+    ? (Object.prototype.hasOwnProperty.call(activityFocus, recentActivity.type.toLowerCase())
+        ? activityFocus[recentActivity.type.toLowerCase()]
+        : recentActivity.type.toLowerCase())
     : undefined;
   const focusOptions = [...new Set([recentFocus, user.fitnessGoal].filter((focus): focus is string => Boolean(focus)))];
 
